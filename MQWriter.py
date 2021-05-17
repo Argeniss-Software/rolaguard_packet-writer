@@ -1,6 +1,6 @@
 import atexit
 
-import pika, os, logging, json, time
+import pika, os, logging, json, signal
 import dateutil.parser as dp
 
 from S3CollectorMessagesManager import S3CollectorMessagesManager
@@ -29,16 +29,20 @@ def save_messages(messages, data_collector_id, packet_id):
             message['packet_id'] = packet_id
         CollectorMessageManager.save_collector_messages(data_collector_id, messages)
 
+def timeout_writer(signum, frame):
+    global write_queue
+    if len(write_queue) != 0:
+        engine.execute(Packet.__table__.insert(), write_queue)
+        write_queue = []
+        session.commit()
 
 BATCH_LENGHT = 64
 DATA_MAX_LEN = 300
 WRITE_TIMEOUT = 10
 write_queue = []
-last_packet_time = None
 
 def callback(ch, method, properties, body):
     global write_queue
-    global last_packet_time
     try:
         message = body.decode("utf-8")
         # Parse the JSON into a dict
@@ -91,12 +95,13 @@ def callback(ch, method, properties, body):
                 gw_name=packet.get('gw_name', None)
                 )
             write_queue.append(packet)
-            last_packet_time = time.time()
+            signal.signal(signal.SIGALRM, timeout_writer)
+            signal.alarm(10)
             
-        if (len(write_queue) >= BATCH_LENGHT) or (last_packet_time is not None and time.time() >= last_packet_time + WRITE_TIMEOUT):
+        if len(write_queue) >= BATCH_LENGHT:
+            signal.alarm(0)
             engine.execute(Packet.__table__.insert(), write_queue)
             write_queue = []
-            last_packet_time = None
             session.commit()
         
         if messages and len(messages) > 0:
