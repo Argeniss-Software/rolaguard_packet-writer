@@ -29,6 +29,12 @@ def save_messages(messages, data_collector_id, packet_id):
             message['packet_id'] = packet_id
         CollectorMessageManager.save_collector_messages(data_collector_id, messages)
 
+BATCH_LENGHT = 64
+DATA_MAX_LEN = 300
+WRITE_TIMEOUT = 10
+write_queue = []
+
+
 def timeout_writer(signum, frame):
     global write_queue
     if len(write_queue) != 0:
@@ -36,10 +42,6 @@ def timeout_writer(signum, frame):
         write_queue = []
         session.commit()
 
-BATCH_LENGHT = 64
-DATA_MAX_LEN = 300
-WRITE_TIMEOUT = 10
-write_queue = []
 
 def callback(ch, method, properties, body):
     global write_queue
