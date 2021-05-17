@@ -98,7 +98,7 @@ def callback(ch, method, properties, body):
                 )
             write_queue.append(packet)
             signal.signal(signal.SIGALRM, timeout_writer)
-            signal.alarm(10)
+            signal.alarm(WRITE_TIMEOUT)
             
         if len(write_queue) >= BATCH_LENGHT:
             signal.alarm(0)
